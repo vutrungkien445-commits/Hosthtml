@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Form Ghi nhận Bảo dưỡng</title>
+  <!-- Office.js references -->
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js" type="text/javascript"></script>
   <style>
   * {
     margin: 0;
@@ -591,6 +593,7 @@ input[type="date"]::-moz-calendar-picker-indicator {
       <!-- XÓA nút Lưu và Xuất file, chỉ giữ lại Làm mới và Copy Clipboard -->
       <button type="button" class="btn btn-secondary" onclick="clearForm()">🔄 Làm mới</button>
       <button type="button" class="btn btn-success" onclick="copyToClipboard()">📋 Copy Clipboard</button>
+      <button type="submit" class="btn btn-primary">Lưu vào Excel</button>
     </div>
   </form>
 </div>
@@ -646,6 +649,48 @@ input[type="date"]::-moz-calendar-picker-indicator {
 let itemsData = [], formData = [];
 let masterOptions = null;
 let masterMachines = null;
+
+// Function to write data to Excel
+async function writeToExcel(formData, itemsData) {
+    try {
+        await Excel.run(async (context) => {
+            // Get the sheet named "Maintenance Table4"
+            let sheet = context.workbook.worksheets.getItem("Maintenance Table4");
+            
+            // Get the last row with data
+            let range = sheet.getUsedRange();
+            await context.sync();
+            let lastRow = range.rowCount;
+            
+            // For each item in itemsData, create a new row
+            itemsData.forEach((item, index) => {
+                let newRow = lastRow + 1 + index;
+                
+                // Write form data and item data to the row
+                let rowRange = sheet.getRangeByIndexes(newRow, 0, 1, 8);
+                rowRange.values = [[
+                    formData.maintenanceDate, // Date
+                    formData.machineType,     // Maintenance Type
+                    formData.machineNumber,   // Machine Number
+                    formData.technician,      // Technician
+                    item.partNumber,          // Part Number
+                    item.description,         // Description
+                    item.quantity,            // Quantity
+                    item.remarks              // Remarks
+                ]];
+            });
+            
+            await context.sync();
+            showMessage("Dữ liệu đã được lưu vào Excel thành công!", "success");
+            
+            // Clear form after successful save
+            clearForm();
+        });
+    } catch (error) {
+        console.error(error);
+        showMessage("Lỗi khi lưu dữ liệu vào Excel: " + error.message, "error");
+    }
+}
 
 // Định nghĩa lại maintenanceTypeItems với danh sách cụ thể
 const maintenanceTypeItems = {
@@ -947,7 +992,38 @@ document.addEventListener('DOMContentLoaded', function() {
     text: o.textContent 
   }));
 });
+
+function removeItem(index) {
+  if (index >= 0 && index < itemsData.length) {
+    const removedItem = itemsData[index];
+    itemsData.splice(index, 1);
+    renderItemsList();
+    showMessage(`Đã xóa vật tư ${removedItem.code}`, 'success');
+  }
+}
+
+// Initialize Office.js
+Office.onReady((info) => {
+    if (info.host === Excel.HostType.Excel) {
+        document.getElementById('excelForm').onsubmit = async (event) => {
+            event.preventDefault();
+            
+            const formData = {
+                maintenanceDate: document.getElementById('maintenanceDate').value,
+                machineType: document.getElementById('machineType').value,
+                machineNumber: document.getElementById('machineNumber').value,
+                technician: document.getElementById('technician').value
+            };
+            
+            if (itemsData.length === 0) {
+                showMessage("Vui lòng thêm ít nhất một vật tư!", "error");
+                return;
+            }
+            
+            await writeToExcel(formData, itemsData);
+        };
+    }
+});
 </script>
 </body>
 </html>
-
